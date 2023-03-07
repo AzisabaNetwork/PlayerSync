@@ -1,0 +1,9 @@
+name: PlayerSync
+version: @version@
+main: net.azisaba.playersync.PlayerSyncPlugin
+api-version: 1.15
+depend:
+  - Vault
+commands:
+  playersync:
+    permission: playersync.command.playersync
