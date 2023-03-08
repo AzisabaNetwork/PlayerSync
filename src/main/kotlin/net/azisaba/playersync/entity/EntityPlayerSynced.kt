@@ -27,6 +27,7 @@ import org.bukkit.craftbukkit.v1_15_R1.entity.CraftPlayer
 import org.bukkit.craftbukkit.v1_15_R1.inventory.CraftItemStack
 import org.bukkit.entity.Player
 import java.util.UUID
+import java.util.concurrent.ConcurrentHashMap
 import kotlin.math.abs
 import kotlin.math.floor
 import kotlin.math.round
@@ -45,7 +46,7 @@ class EntityPlayerSynced(
     interactManager,
 ) {
     companion object {
-        val players = mutableMapOf<UUID, EntityPlayerSynced>()
+        val players = ConcurrentHashMap<UUID, EntityPlayerSynced>()
 
         val SHARED_FLAGS_ID = T!!
         val DATA_PLAYER_MODE_CUSTOMIZATION = bq!!
