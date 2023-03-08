@@ -94,10 +94,9 @@ object PacketListenerImpl : PacketListener {
                 if (!wasVanished.contains(packet.uuid)) {
                     // start vanish
                     wasVanished.add(packet.uuid)
-                    val packetBuilder = player.getDespawnPacketBuilder()
-                    Bukkit.getOnlinePlayers().forEach { player ->
-                        if (player.hasPermission("playersync.see-vanished")) return@forEach
-                        packetBuilder.sendTo(player)
+                    Bukkit.getOnlinePlayers().forEach { p ->
+                        if (p.hasPermission("playersync.see-vanished")) return@forEach
+                        player.despawnFor(p)
                     }
                 }
             } else {

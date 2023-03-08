@@ -1,6 +1,7 @@
 package net.azisaba.playersync.entity
 
 import com.mojang.authlib.GameProfile
+import net.azisaba.playersync.PlayerSyncPlugin
 import net.azisaba.playersync.data.PartialInventory
 import net.azisaba.playersync.data.PlayerPos
 import net.azisaba.playersync.util.PacketBuilder
@@ -243,12 +244,34 @@ class EntityPlayerSynced(
      * プレイヤーをデスポーンさせる
      */
     fun despawn() {
-        getDespawnPacketBuilder().broadcast()
+        getDespawnPacketBuilder().apply {
+            first.broadcast()
+            PlayerSyncPlugin.getInstance().async(2) {
+                if (Bukkit.getPlayer(profile.id) == null) {
+                    second.broadcast()
+                }
+            }
+        }
     }
 
-    fun getDespawnPacketBuilder() =
+    /**
+     * プレイヤーをデスポーンさせる
+     */
+    fun despawnFor(player: Player) {
+        getDespawnPacketBuilder().apply {
+            first.sendTo(player)
+            PlayerSyncPlugin.getInstance().async(2) {
+                if (Bukkit.getPlayer(profile.id) == null) {
+                    second.sendTo(player)
+                }
+            }
+        }
+    }
+
+    fun getDespawnPacketBuilder(): Pair<PacketBuilder, PacketBuilder> =
         PlayerUtil.packetBuilder {
             addPacket(PacketPlayOutEntityDestroy(id))
+        } to PlayerUtil.packetBuilder {
             addPacket(PacketPlayOutPlayerInfo(PacketPlayOutPlayerInfo.EnumPlayerInfoAction.REMOVE_PLAYER, this@EntityPlayerSynced))
         }
 
