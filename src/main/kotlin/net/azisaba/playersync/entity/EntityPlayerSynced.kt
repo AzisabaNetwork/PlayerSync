@@ -11,6 +11,7 @@ import net.minecraft.server.v1_15_R1.EnumGamemode
 import net.minecraft.server.v1_15_R1.EnumHand
 import net.minecraft.server.v1_15_R1.EnumItemSlot
 import net.minecraft.server.v1_15_R1.IChatBaseComponent
+import net.minecraft.server.v1_15_R1.ItemStack
 import net.minecraft.server.v1_15_R1.PacketPlayOutEntity
 import net.minecraft.server.v1_15_R1.PacketPlayOutEntityDestroy
 import net.minecraft.server.v1_15_R1.PacketPlayOutEntityEquipment
@@ -22,11 +23,9 @@ import net.minecraft.server.v1_15_R1.PacketPlayOutPlayerInfo
 import net.minecraft.server.v1_15_R1.PlayerInteractManager
 import net.minecraft.server.v1_15_R1.WorldServer
 import org.bukkit.Bukkit
-import org.bukkit.GameMode
 import org.bukkit.craftbukkit.v1_15_R1.entity.CraftPlayer
 import org.bukkit.craftbukkit.v1_15_R1.inventory.CraftItemStack
 import org.bukkit.entity.Player
-import org.bukkit.event.player.PlayerGameModeChangeEvent
 import java.util.UUID
 import kotlin.math.abs
 import kotlin.math.floor
@@ -38,7 +37,7 @@ class EntityPlayerSynced(
     interactManager: PlayerInteractManager,
     initialPos: PlayerPos = PlayerPos.ZERO,
     initialInventory: PartialInventory = PartialInventory.EMPTY,
-    private val tabListName: String = "",
+    var tabListName: String = "",
 ) : EntityPlayer(
     worldServer.minecraftServer,
     worldServer,
@@ -48,6 +47,7 @@ class EntityPlayerSynced(
     companion object {
         val players = mutableMapOf<UUID, EntityPlayerSynced>()
 
+        val SHARED_FLAGS_ID = T!!
         val DATA_PLAYER_MODE_CUSTOMIZATION = bq!!
         val DATA_PLAYER_MAIN_HAND = br!!
     }
@@ -66,15 +66,12 @@ class EntityPlayerSynced(
     var vanished = false
 
     fun tickAndRefresh() {
-        // 10秒以上データの更新がない場合は削除する
-        if (System.currentTimeMillis() - lastActive > 10000) {
+        // 30秒以上データの更新がない場合は削除する
+        if (System.currentTimeMillis() - lastActive > 30000) {
             unregister()
             return
         }
         ticksLived++
-        // インベントリを更新
-        a(EnumHand.MAIN_HAND, CraftItemStack.asNMSCopy(partialInventory.mainHand))
-        a(EnumHand.OFF_HAND, CraftItemStack.asNMSCopy(partialInventory.offHand))
         // プレイヤーの位置を更新
         val pos = currentPos
         setPositionRotation(pos.x, pos.y, pos.z, pos.yaw, pos.pitch)
@@ -133,11 +130,18 @@ class EntityPlayerSynced(
             }
         }.broadcast(this)
 
+        // エンティティのデータを送信
         sendDirtyEntityData()
     }
 
+    /**
+     * プレイヤーのposeをDataWatcherの値と一致するように更新する
+     */
     fun updatePlayerPose() = dX()
 
+    /**
+     * DataWatcherのdirtyがtrueの場合はDataWatcherを送信する
+     */
     private fun sendDirtyEntityData() {
         val list = dataWatcher.b() // packDirty
         if (list != null) {
@@ -191,7 +195,26 @@ class EntityPlayerSynced(
         getInventoryUpdatePacketBuilder().sendTo(player)
     }
 
-    fun getInventoryUpdatePacketBuilder(): PacketBuilder {
+    override fun getEquipment(enumitemslot: EnumItemSlot?): ItemStack =
+        when (enumitemslot) {
+            EnumItemSlot.MAINHAND -> CraftItemStack.asNMSCopy(partialInventory.mainHand)
+            EnumItemSlot.OFFHAND -> CraftItemStack.asNMSCopy(partialInventory.offHand)
+            EnumItemSlot.HEAD -> CraftItemStack.asNMSCopy(partialInventory.helmet)
+            EnumItemSlot.CHEST -> CraftItemStack.asNMSCopy(partialInventory.chestplate)
+            EnumItemSlot.LEGS -> CraftItemStack.asNMSCopy(partialInventory.leggings)
+            EnumItemSlot.FEET -> CraftItemStack.asNMSCopy(partialInventory.boots)
+            else -> error("Invalid slot: $enumitemslot")
+        }
+
+    /**
+     * プレイヤーのインベントリを更新するパケットを送信する
+     */
+    fun updateInventory() {
+        // パケットを送信
+        getInventoryUpdatePacketBuilder().broadcast(this)
+    }
+
+    private fun getInventoryUpdatePacketBuilder(): PacketBuilder {
         val inventory = partialInventory
         return PlayerUtil.packetBuilder {
             addPacket(PacketPlayOutEntityEquipment(id, EnumItemSlot.MAINHAND, CraftItemStack.asNMSCopy(inventory.mainHand)))
@@ -203,6 +226,9 @@ class EntityPlayerSynced(
         }
     }
 
+    /**
+     * プレイヤーを削除する
+     */
     fun unregister() {
         players.remove(profile.id)
         despawn()
@@ -212,6 +238,9 @@ class EntityPlayerSynced(
         return ChatComponentText(tabListName.ifBlank { name })
     }
 
+    /**
+     * プレイヤーをデスポーンさせる
+     */
     fun despawn() {
         getDespawnPacketBuilder().broadcast()
     }
@@ -222,6 +251,9 @@ class EntityPlayerSynced(
             addPacket(PacketPlayOutPlayerInfo(PacketPlayOutPlayerInfo.EnumPlayerInfoAction.REMOVE_PLAYER, this@EntityPlayerSynced))
         }
 
+    /**
+     * 「使用中」のアニメーションを開始/終了する
+     */
     fun setHandRaised(handRaised: Boolean, hand: EnumHand) {
         if (handRaised && !isHandRaised) {
             c(hand)
@@ -231,23 +263,28 @@ class EntityPlayerSynced(
         }
     }
 
+    /**
+     * プレイヤーのゲームモードを変更する
+     */
     @Suppress("DEPRECATION")
     fun changeGameMode(gameMode: EnumGamemode) {
         if (gameMode != playerInteractManager.gameMode) {
-            val event = PlayerGameModeChangeEvent(bukkitEntity, GameMode.getByValue(gameMode.id)!!)
-            world.server.pluginManager.callEvent(event)
-            if (!event.isCancelled) {
-                playerInteractManager.gameMode = gameMode
-                if (gameMode == EnumGamemode.SPECTATOR) {
-                    releaseShoulderEntities()
-                    stopRiding()
-                } else {
-                    setSpectatorTarget(this)
-                }
-                updateAbilities()
-                dz()
-                C()
+            playerInteractManager.gameMode = gameMode
+            if (gameMode == EnumGamemode.SPECTATOR) {
+                releaseShoulderEntities()
+                stopRiding()
+            } else {
+                setSpectatorTarget(this)
             }
+            updateAbilities()
+            dz()
+            C()
         }
+    }
+
+    fun updateTabName() {
+        PlayerUtil.packetBuilder {
+            addPacket(PacketPlayOutPlayerInfo(PacketPlayOutPlayerInfo.EnumPlayerInfoAction.UPDATE_DISPLAY_NAME, this@EntityPlayerSynced))
+        }.broadcast(this)
     }
 }

@@ -4,10 +4,14 @@ import com.charleskorn.kaml.YamlComment
 import kotlinx.serialization.Serializable
 import net.milkbowl.vault.chat.Chat
 import org.bukkit.Bukkit
+import org.bukkit.ChatColor
 import org.bukkit.entity.Player
 
 @Serializable
 data class PlayerSyncConfig(
+    @YamlComment(
+        "プレイヤー情報の同期に使用されるRedisのキーを指定します。",
+    )
     val group: String = "default",
     @YamlComment(
         "Tabに表示されるプレイヤー名を設定します。",
@@ -28,5 +32,6 @@ data class PlayerSyncConfig(
             .replace("%prefix%", chat?.getPlayerPrefix(player).toString())
             .replace("%suffix%", chat?.getPlayerSuffix(player).toString())
             .replace("%display_name%", player.displayName)
+            .let { ChatColor.translateAlternateColorCodes('&', it) }
     }
 }

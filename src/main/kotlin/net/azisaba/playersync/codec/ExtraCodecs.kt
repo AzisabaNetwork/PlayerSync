@@ -7,7 +7,9 @@ import org.bukkit.Material
 import org.bukkit.inventory.ItemStack
 import xyz.acrylicstyle.util.serialization.codec.Codec
 
+@Suppress("MemberVisibilityCanBePrivate")
 object ExtraCodecs {
+    @JvmStatic
     val property: Codec<Property> =
         Codec.builder<Property>()
             .group(
@@ -17,6 +19,7 @@ object ExtraCodecs {
             )
             .build(::Property)
 
+    @JvmStatic
     val propertyMap: Codec<PropertyMap> =
         Codec.builder<PropertyMap>()
             .group(
@@ -25,6 +28,7 @@ object ExtraCodecs {
                     .getter { it.asMap().mapValues { (_, v) -> v.toList() } }
             ).build { properties -> PropertyMap().apply { properties.forEach { (k, v) -> this.putAll(k, v) } } }
 
+    @JvmStatic
     val gameProfile: Codec<GameProfile> =
         Codec.builder<GameProfile>()
             .group(
@@ -34,6 +38,7 @@ object ExtraCodecs {
             )
             .build { id, name, properties -> GameProfile(id, name).apply { properties.putAll(properties) } }
 
+    @JvmStatic
     val byteArray: Codec<ByteArray> =
         Codec.of({ value, encoder ->
             encoder.encodeInt(value.size)
@@ -43,6 +48,7 @@ object ExtraCodecs {
             ByteArray(size) { decoder.decodeByte() }
         }, "ByteArray")
 
+    @JvmStatic
     val itemStack: Codec<ItemStack> =
         Codec.builder<ItemStack>()
             .group(byteArray.fieldOf("data").getter {

@@ -12,7 +12,7 @@ data class PlayerPos(val x: Double, val y: Double, val z: Double, val yaw: Float
     companion object {
         val ZERO = PlayerPos(0.0, 0.0, 0.0, 0.0f, 0.0f)
 
-        val CODEC =
+        val CODEC: Codec<PlayerPos> =
             Codec.builder<PlayerPos>()
                 .group(
                     Codec.DOUBLE.fieldOf("x").getter { it.x },

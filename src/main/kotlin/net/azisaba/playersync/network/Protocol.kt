@@ -4,6 +4,8 @@ import io.netty.buffer.ByteBuf
 import net.azisaba.playersync.network.packet.PacketDestroyPlayer
 import net.azisaba.playersync.network.packet.PacketPlayerSwingHand
 import net.azisaba.playersync.network.packet.PacketPlayerTick
+import net.azisaba.playersync.network.packet.PacketPlayerUpdateTabName
+import net.azisaba.playersync.network.packet.PacketRefreshPlayers
 import net.azisaba.playersync.network.packet.PacketSpawnPlayer
 import net.azisaba.playersync.network.packet.PacketUpdateInventory
 import java.util.concurrent.ConcurrentHashMap
@@ -24,6 +26,8 @@ object Protocol {
     val DESTROY_PLAYER = register("destroy_player", PacketDestroyPlayer::class.java, ::PacketDestroyPlayer)
     val UPDATE_INVENTORY = register("update_inventory", PacketUpdateInventory::class.java, ::PacketUpdateInventory)
     val PLAYER_SWING_HAND = register("player_swing_hand", PacketPlayerSwingHand::class.java, ::PacketPlayerSwingHand)
+    val PLAYER_UPDATE_TAB_NAME = register("player_update_tab_name", PacketPlayerUpdateTabName::class.java, ::PacketPlayerUpdateTabName)
+    val REFRESH_PLAYERS = register("refresh_players", PacketRefreshPlayers::class.java, ::PacketRefreshPlayers)
 
     private fun <P : PacketListener, T : Packet<P>> register(
         name: String,

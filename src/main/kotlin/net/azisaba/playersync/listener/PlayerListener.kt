@@ -9,7 +9,9 @@ import net.azisaba.playersync.network.Protocol
 import net.azisaba.playersync.network.packet.PacketDestroyPlayer
 import net.azisaba.playersync.network.packet.PacketPlayerSwingHand
 import net.azisaba.playersync.network.packet.PacketSpawnPlayer
+import net.azisaba.playersync.network.packet.PacketUpdateInventory
 import net.minecraft.server.v1_15_R1.EnumHand
+import org.bukkit.Bukkit
 import org.bukkit.ChatColor
 import org.bukkit.craftbukkit.v1_15_R1.entity.CraftPlayer
 import org.bukkit.entity.Player
@@ -40,7 +42,15 @@ object PlayerListener : Listener {
         sendSpawnAndRespawnNPCs(e.player)
     }
 
-    private fun sendSpawnAndRespawnNPCs(player: Player) {
+    fun sendSpawnAndRespawnNPCs(player: Player) {
+        // メインスレッドではない場合はメインスレッドで実行する
+        if (!Bukkit.isPrimaryThread()) {
+            plugin.sync { sendSpawnAndRespawnNPCs(player) }
+            return
+        }
+        // TabListの名前はメインスレッドで取得する
+        val tabListName = Config.config.getFormattedTabListName(player)
+        plugin.trackingTabListName[player.uniqueId] = tabListName
         plugin.async {
             val gameProfile = (player as CraftPlayer).handle.profile
             val packet =
@@ -48,11 +58,14 @@ object PlayerListener : Listener {
                     player.world.name,
                     gameProfile,
                     PlayerPos(player.location),
-                    PartialInventory.fromBukkitInventory(player.inventory),
-                    ChatColor.translateAlternateColorCodes('&', Config.config.getFormattedTabListName(player)),
+                    tabListName,
                     plugin.isVanished(player),
                 )
             Protocol.SPAWN_PLAYER.send(plugin.jedisBox.pubSubHandler, packet)
+            Protocol.UPDATE_INVENTORY.send(
+                plugin.jedisBox.pubSubHandler,
+                PacketUpdateInventory(player.uniqueId, PartialInventory.fromBukkitInventory(player.inventory))
+            )
             EntityPlayerSynced.players.values.forEach { it.spawnFor(player) }
         }
     }

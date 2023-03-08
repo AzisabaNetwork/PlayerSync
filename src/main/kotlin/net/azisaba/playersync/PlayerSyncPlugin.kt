@@ -10,6 +10,8 @@ import net.azisaba.playersync.listener.PlayerListener
 import net.azisaba.playersync.network.JedisBox
 import net.azisaba.playersync.network.Protocol
 import net.azisaba.playersync.network.packet.PacketPlayerTick
+import net.azisaba.playersync.network.packet.PacketPlayerUpdateTabName
+import net.azisaba.playersync.network.packet.PacketRefreshPlayers
 import net.azisaba.playersync.network.packet.PacketUpdateInventory
 import org.bukkit.Bukkit
 import org.bukkit.craftbukkit.v1_15_R1.entity.CraftPlayer
@@ -26,7 +28,13 @@ class PlayerSyncPlugin : JavaPlugin(), AbstractPlayerSync {
     lateinit var jedisBox: JedisBox
 
     private val trackingPartialInventories = mutableMapOf<UUID, PartialInventory>()
+    val trackingTabListName = mutableMapOf<UUID, String>()
+
     private val vanishedPlayers = mutableSetOf<UUID>()
+
+    override fun onLoad() {
+        preloadClasses()
+    }
 
     override fun onEnable() {
         // 設定を読み込む
@@ -43,6 +51,7 @@ class PlayerSyncPlugin : JavaPlugin(), AbstractPlayerSync {
         Bukkit.getScheduler().runTaskTimerAsynchronously(this, Runnable {
             // PacketPlayerTickを送信
             Bukkit.getOnlinePlayers().forEach { player ->
+                // Tickパケットを送信
                 val entityPlayer = (player as CraftPlayer).handle
                 val packet =
                     PacketPlayerTick(
@@ -72,10 +81,38 @@ class PlayerSyncPlugin : JavaPlugin(), AbstractPlayerSync {
             // EntityPlayerSyncedのtickAndRefreshを実行
             EntityPlayerSynced.players.values.forEach { it.tickAndRefresh() }
         }, 1, 1)
+
+        // 毎秒のタスク
+        Bukkit.getScheduler().runTaskTimer(this, Runnable {
+            Bukkit.getOnlinePlayers().forEach { player ->
+                // Tabの名前が変わったら送信
+                val tabListName = Config.config.getFormattedTabListName(player)
+                if (tabListName != trackingTabListName[player.uniqueId]) {
+                    trackingTabListName[player.uniqueId] = tabListName
+                    async {
+                        Protocol.PLAYER_UPDATE_TAB_NAME.send(
+                            jedisBox.pubSubHandler,
+                            PacketPlayerUpdateTabName(player.uniqueId, tabListName)
+                        )
+                    }
+                }
+            }
+        }, 20, 20)
+
+        // reload時にNPCを再送信
+        async {
+            Protocol.REFRESH_PLAYERS.send(jedisBox.pubSubHandler, PacketRefreshPlayers())
+        }
+
+        slF4JLogger.info("$name is enabled.")
     }
 
     override fun onDisable() {
-        jedisBox.close()
+        try {
+            jedisBox.close()
+        } catch (e: Exception) {
+            slF4JLogger.warn("Error closing JedisBox", e)
+        }
         EntityPlayerSynced.players.values.forEach { it.unregister() }
     }
 
@@ -95,5 +132,9 @@ class PlayerSyncPlugin : JavaPlugin(), AbstractPlayerSync {
 
     fun sync(fn: () -> Unit) {
         Bukkit.getScheduler().runTask(this, fn)
+    }
+
+    private fun preloadClasses() {
+        Class.forName("net.azisaba.playersync.entity.EntityPlayerSynced\$getDespawnPacketBuilder\$1")
     }
 }
