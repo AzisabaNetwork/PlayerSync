@@ -51,7 +51,7 @@ object PlayerListener : Listener {
         // TabListの名前はメインスレッドで取得する
         val tabListName = Config.config.getFormattedTabListName(player)
         plugin.trackingTabListName[player.uniqueId] = tabListName
-        plugin.async {
+        plugin.async(10) {
             val gameProfile = (player as CraftPlayer).handle.profile
             val packet =
                 PacketSpawnPlayer(

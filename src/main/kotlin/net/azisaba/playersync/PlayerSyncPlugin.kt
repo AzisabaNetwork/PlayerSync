@@ -126,8 +126,8 @@ class PlayerSyncPlugin : JavaPlugin(), AbstractPlayerSync {
 
     override fun isVanished(player: Player): Boolean = vanishedPlayers.contains(player.uniqueId)
 
-    fun async(fn: () -> Unit) {
-        Bukkit.getScheduler().runTaskAsynchronously(this, fn)
+    fun async(delay: Long = 0, fn: () -> Unit) {
+        Bukkit.getScheduler().runTaskLaterAsynchronously(this, fn, delay)
     }
 
     fun sync(fn: () -> Unit) {
